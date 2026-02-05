@@ -1,0 +1,62 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:15
+    container_name: db-1
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: analytics_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  source-api:
+    build: ./source-api
+    container_name: source-api-1
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/data
+
+  pipeline:
+    build: ./pipeline
+    container_name: data_pipeline
+    ports:
+      - "8080:8080" # Necessário para o Flask conseguir dar o trigger
+    depends_on:
+      - db
+      - source-api
+
+  transformation:
+    build: ./transformation
+    container_name: transformation_service
+    depends_on:
+      - db
+
+  backend-auth:
+    build: ./backend-auth
+    container_name: backend_auth
+    ports:
+      - "5001:5001"
+    depends_on:
+      - db
+      - pipeline
+
+  backend-query:
+    build: ./backend-query
+    container_name: backend_query
+    ports:
+      - "8081:8081"
+    depends_on:
+      - db
+
+  frontend:
+    build: ./frontend
+    container_name: react_dashboard
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend-auth
+      - backend-query
